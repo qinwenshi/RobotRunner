@@ -9,11 +9,13 @@ import java.util.Locale;
 
 public class Main {
     static String SRC_FOLDER = "/Users/qinwenshi/Desktop/java_exp/";
+    static String GPIO_LIB_PATH = "/opt/pi4j/lib/*";
 
     public static void main(String[] args) throws IOException, InterruptedException {
         validateParameters(args);
 
         SRC_FOLDER = args[0];
+
         compileSourceCode(SRC_FOLDER);
         runRobot(SRC_FOLDER);
     }
@@ -23,10 +25,36 @@ public class Main {
             throw new InterruptedException("Usage: Need to pass in root folder for source code");
     }
 
+
+    private static String buildClassPath(String... paths) {
+        StringBuilder sb = new StringBuilder();
+        for (String path : paths) {
+            if (path.endsWith("*")) {
+                path = path.substring(0, path.length() - 1);
+                File pathFile = new File(path);
+                for (File file : pathFile.listFiles()) {
+                    if (file.isFile() && file.getName().endsWith(".jar")) {
+                        sb.append(path);
+                        sb.append(file.getName());
+                        sb.append(System.getProperty("path.separator"));
+                    }
+                }
+            } else {
+                sb.append(path);
+                sb.append(System.getProperty("path.separator"));
+            }
+        }
+        return sb.toString();
+    }
+
     private static void compileSourceCode(String sourceFolder) throws IOException {
+
+        String compilingClasspath = buildClassPath(GPIO_LIB_PATH);
         File srcFolder = new File(sourceFolder);
-        String[] compilerOptions = new String[]{"-d", sourceFolder + "out"};
+        String[] compilerOptions = new String[]{"-classpath", compilingClasspath, "-d", sourceFolder + "out"};
+
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+
 
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<JavaFileObject>();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
@@ -35,9 +63,11 @@ public class Main {
                 .getJavaFileObjectsFromStrings(retrieveSourceFiles(srcFolder));
         JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, Arrays.asList(compilerOptions),
                 null, compilationUnits);
+
+        Boolean succ = task.call();
         if(!diagnostics.getDiagnostics().isEmpty())
             System.out.println(diagnostics.getDiagnostics().get(0).getMessage(new Locale("UTF-8")));
-        task.call();
+
         fileManager.close();
     }
 
@@ -61,11 +91,17 @@ public class Main {
 
     private static void runRobot(String sourceFolder) throws IOException, InterruptedException {
         Runtime rt = Runtime.getRuntime();
-        Process proc = rt.exec("java -classpath " + sourceFolder + "out" + " Robot");
-        InputStream stderr = proc.getInputStream();
-        InputStreamReader isr = new InputStreamReader(stderr);
+        String runningClasspath = buildClassPath(sourceFolder+"out", GPIO_LIB_PATH);
+        Process proc = rt.exec("java -classpath " + runningClasspath + " Robot");
+        InputStream stdout = proc.getInputStream();
+        InputStream stderr = proc.getErrorStream();
+        InputStreamReader isr = new InputStreamReader(stdout);
         BufferedReader br = new BufferedReader(isr);
         String line;
+        while ((line = br.readLine()) != null)
+            System.out.println(line);
+        isr = new InputStreamReader(stderr);
+        br = new BufferedReader(isr);
         while ((line = br.readLine()) != null)
             System.out.println(line);
         System.out.println("");
