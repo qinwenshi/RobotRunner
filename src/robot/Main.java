@@ -10,14 +10,16 @@ import java.util.Locale;
 public class Main {
     static String SRC_FOLDER = "/Users/qinwenshi/Desktop/java_exp/";
     static String GPIO_LIB_PATH = "/opt/pi4j/lib/*";
+    private static String Robot_class_name;
 
     public static void main(String[] args) throws IOException, InterruptedException {
         validateParameters(args);
 
         SRC_FOLDER = args[0];
+        Robot_class_name = args[1].split("\\.")[0];
 
-        compileSourceCode(SRC_FOLDER);
-        runRobot(SRC_FOLDER);
+        if(compileSourceCode(SRC_FOLDER))
+            runRobot(SRC_FOLDER);
     }
 
     private static void validateParameters(String[] args) throws InterruptedException {
@@ -47,7 +49,7 @@ public class Main {
         return sb.toString();
     }
 
-    private static void compileSourceCode(String sourceFolder) throws IOException {
+    private static boolean compileSourceCode(String sourceFolder) throws IOException {
 
         String compilingClasspath = buildClassPath(GPIO_LIB_PATH);
         File srcFolder = new File(sourceFolder);
@@ -69,6 +71,7 @@ public class Main {
             System.out.println(diagnostics.getDiagnostics().get(0).getMessage(new Locale("UTF-8")));
 
         fileManager.close();
+        return succ;
     }
 
     private static List<String> retrieveSourceFiles(File folder) {
@@ -92,7 +95,7 @@ public class Main {
     private static void runRobot(String sourceFolder) throws IOException, InterruptedException {
         Runtime rt = Runtime.getRuntime();
         String runningClasspath = buildClassPath(sourceFolder+"out", GPIO_LIB_PATH);
-        Process proc = rt.exec("java -classpath " + runningClasspath + " Robot");
+        Process proc = rt.exec("java -classpath " + runningClasspath + " " + Robot_class_name);
         InputStream stdout = proc.getInputStream();
         InputStream stderr = proc.getErrorStream();
         InputStreamReader isr = new InputStreamReader(stdout);
